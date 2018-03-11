@@ -1,8 +1,6 @@
 [package]
-name = "basics"
+name = "location"
 version = "0.1.0"
 authors = ["GuMiner <gus.gran@gmail.com>"]
 
 [dependencies]
-rand = "0.4.*"
-location = { path = "location" }

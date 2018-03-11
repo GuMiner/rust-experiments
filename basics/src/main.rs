@@ -1,4 +1,5 @@
 extern crate rand;
+extern crate location;
 
 use std::cmp::Ordering;
 use std::io;
@@ -34,6 +35,8 @@ impl fmt::Display for Shapes {
 fn more_control_flow_tests() {
     let mut shape = Shapes::Triangle;
     println!("{}", shape);
+    shape = Shapes::Hexagon;
+    println!("{}", shape);
     shape = Shapes::Circle(32);
     println!("{}", shape);
     shape = Shapes::Rectangle { width: 11, height: 12 };
@@ -41,14 +44,14 @@ fn more_control_flow_tests() {
 
     // Option type demos
     let null: Option<i32> = Option::None;
-    let notNull = Some(4);
+    let not_null = Some(4);
     match null {
         None => println!("{}", "null"),
         Some(i) => println!("{}", i + 20),
     }
 
     // "if let" syntax
-    if let Some(4) = notNull {
+    if let Some(4) = not_null {
     println!("four");
 }
 }
@@ -59,12 +62,12 @@ struct Vector {
 }
 
 impl Vector {
-    fn distanceSqd(&self) -> i32 {
+    fn distance_sqd(&self) -> i32 {
         self.x * self.x + self.y * self.y
     }
 
     // Associated functions
-    fn Zero() -> Vector {
+    fn zero() -> Vector {
         Vector { x: 0, y: 0 }
     }
 }
@@ -91,15 +94,17 @@ fn encapsulation_tests() {
     let v2 = Vector { x: 2, y: 2};
     println!("{} {} {} {}", v1.x, v1.y, v2.x, v2.y);
     println!("{} {}", v1, v2);
-    println!("{}", v1.distanceSqd()); // equivalent to (&v1).distanceSqd();
-    println!("{}", Vector::Zero());
+    println!("{}", v1.distance_sqd()); // equivalent to (&v1).distanceSqd();
+    println!("{}", Vector::zero());
 
     let mut v3 = build_vec(2, 4);
     println!("{} {} {0} {0}", v3.x, v3.y);
 
     v3 = Vector { x:1, .. v2}; // struct update syntax
+    println!("{} {} {0} {0}", v3.x, v3.y);
 
     let v4 = Vector3(1, 2, 3);
+    println!("{}", v4.0);
 }
 
 fn string_owner(mystr: String) {
@@ -155,8 +160,8 @@ fn string_tests() {
 
     // Create a new scope so that string_owner does not die.
     {
-        let stringSlice = &s3[0..2];
-        str_borrower(stringSlice);
+        let string_slice = &s3[0..2];
+        str_borrower(string_slice);
 
         // We can also slice arrays, type &[i32] or whatever the array type is
     }
@@ -214,6 +219,11 @@ fn main() {
     string_tests();
     encapsulation_tests();
     more_control_flow_tests();
+    location::write_data();
+
+    let mut vec = location::create_vec();
+    vec.add_item(22);
+    vec.remove_item();
     thread::sleep(Duration::from_millis(10000));
 
     more_advanced_tests();
@@ -253,7 +263,7 @@ fn main() {
 
     // Test all integral types
     let uchar8 = b'C'; // u8 type
-    let mut un8: u8 = 0xFF;
+    // let mut un8: u8 = 0xFF;
     let si8: i8 = 127;
     let un16: u16 = 0b1111_1111_1111_1111;
     let si16: i16 = 3;
@@ -280,14 +290,14 @@ fn main() {
 
     println!(
         "{} {} {} {} {} {} {}",
-        un8, si8, un16, si16, un32, si32, uchar8
+        2, si8, un16, si16, un32, si32, uchar8
     );
     println!("{} {}", fl64, fl32);
     println!("{0} {1} {2}", z, q, VERSION);
     println!("{} {}", achar, unicode);
 
     let tuple = (ttrue, tfalse, achar, z);
-    let (xx, yy, zz, ww) = tuple;
+    let (xx, yy, _zz, _ww) = tuple;
     println!("{} {} {} {}", xx, yy, tuple.0, tuple.3);
 
     more_advanced_tests();

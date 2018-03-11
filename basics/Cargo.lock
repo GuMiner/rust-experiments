@@ -2,6 +2,7 @@
 name = "basics"
 version = "0.1.0"
 dependencies = [
+ "location 0.1.0",
  "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -28,6 +29,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "libc"
 version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "location"
+version = "0.1.0"
 
 [[package]]
 name = "rand"
