@@ -1,0 +1,9 @@
+[package]
+name = "fractal"
+version = "0.1.0"
+authors = ["GuMiner <gus.gran@gmail.com>"]
+
+[dependencies]
+vulkano = "0.7.*"
+vulkano-win = "0.7.*"
+winit = "0.11.*"
