@@ -5,4 +5,5 @@ authors = ["GuMiner <gus.gran@gmail.com>"]
 
 [dependencies]
 kiss3d = "0.13"
-ncollide= "0.14"
+ncollide = "0.14"
+nalgebra = "0.14"
