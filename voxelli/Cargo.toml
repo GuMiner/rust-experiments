@@ -1,0 +1,8 @@
+[package]
+name = "voxelli"
+version = "0.1.0"
+authors = ["GuMiner <gus.gran@gmail.com>"]
+
+[dependencies]
+kiss3d = "0.13"
+ncollide= "0.14"
