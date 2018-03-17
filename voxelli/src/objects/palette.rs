@@ -3,7 +3,7 @@ extern crate nalgebra;
 use nalgebra::Point4;
 
 pub struct Palette {
-    pub colors: [Point4<u8>; 256]
+    pub colors: [Point4<u8>; 256] // Stored in ABGR format.
 }
 
 // From https://github.com/ephtracy/voxel-model/blob/master/MagicaVoxel-file-format-vox.txt

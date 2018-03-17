@@ -1,27 +1,25 @@
 extern crate byteorder;
 extern crate nalgebra;
 
-use std::io::BufReader;
-use std::io::Read;
+use std::io::{BufReader, Read};
 use std::fs::File;
 use std::str;
 
 // The byteorder crate seems to be implemented rather unusually.
 use objects::loader::byteorder::{ByteOrder, LittleEndian};
 
-use nalgebra::Point3;
+use nalgebra::{Point3, Point4};
 
-use objects::object::Voxel;
-use objects::object::SubObject;
-use objects::object::Object;
+use objects::object::{Voxel, SubObject, Object};
 use objects::palette::Palette;
 
-#[derive(Debug)]
 enum ChunkType {
     Main,
     Pack(i32), // Number of models in file
     Size(Point3<i32>), // XYZ size
     Voxels(SubObject), // Voxel listing
+    Palette([Point4<u8>; 256]), // An optional palette
+    Unknown(String) // An unsupported chunk. 
 }
 
 impl ChunkType {
@@ -36,6 +34,17 @@ impl ChunkType {
         match *self {
             ChunkType::Size(xyzi) => false,
             _ => true
+        }
+    }
+
+    fn chunk_name(&self) -> String {
+        match  *self {
+            ChunkType::Main => String::from("Main"),
+            ChunkType::Pack(models) => String::from("Pack"),
+            ChunkType::Size(size) => String::from("Size"),
+            ChunkType::Voxels(ref voxels) => String::from("Voxels"),
+            ChunkType::Palette(palette) => String::from("Palette"),
+            ChunkType::Unknown(ref name) => format!("Unknown of type {}", name)
         }
     }
 }
@@ -98,8 +107,28 @@ fn parse_chunk(data: &[u8]) -> (ChunkType, usize) {
             };
 
             (ChunkType::Voxels(sub_object), bytes_read)
+        },
+        "RGBA" => {
+            let mut colors: [Point4<u8>; 256] = [Point4::new(0xFF, 255, 0, 255); 256];
+            
+            bytes_read += 4 * 256;
+            check_length(12, 4 * 256, &data);
+            for i in 0..256 {
+                let r = *&data[12 + i * 4];
+                let g = *&data[12 + i * 4 + 1];
+                let b = *&data[12 + i * 4 + 2];
+                let a = *&data[12 + i * 4 + 3];
+
+                colors[(i + 1) % 256] = Point4::new(a, b, g, r);
+            }
+
+            (ChunkType::Palette(colors), bytes_read)
         }
-        _ => panic!("Found an unknown chunk type {}", chunk_id)
+        _ => {
+            // Skip to the end of this chunk.
+            bytes_read = 12 + (LittleEndian::read_i32(&data[4..8]) as usize);
+            (ChunkType::Unknown(String::from(chunk_id)), bytes_read)
+        }
     }
 }
 
@@ -141,7 +170,7 @@ pub fn load(file_name: &str) -> Object {
     // Validate we start with MAIN
     let mut byte_idx: usize = 8;
     let (mut chunk_type, mut bytes_read) = parse_chunk(&bytes[byte_idx..]);
-    println!("Read in a {:?} chunk", chunk_type);
+    println!("Read in a {} chunk", chunk_type.chunk_name());
 
     if chunk_type.is_not_main() {
         panic!("Expected the file to start with a main chunk");
@@ -151,7 +180,7 @@ pub fn load(file_name: &str) -> Object {
     let (mut chunk_type, mut bytes_read) = parse_chunk(&bytes[byte_idx..]);
 
     // This is either a PACK or a SIZE chunk. 
-    println!("Read in a {:?} chunk", chunk_type);
+    println!("Read in a {} chunk", chunk_type.chunk_name());
     let model_count = match chunk_type {
         ChunkType::Pack(count) => {
             byte_idx += bytes_read; // We don't call this if it was a SIZE chunk, so parsing is identical from now-on.
@@ -165,7 +194,7 @@ pub fn load(file_name: &str) -> Object {
     let mut sub_objects: Vec<SubObject> = Vec::new();
     for model in 0..model_count {
         let (mut chunk_type, mut bytes_read) = parse_chunk(&bytes[byte_idx..]);
-        println!("Read in a {:?} chunk", chunk_type);
+        println!("Read in a {} chunk", chunk_type.chunk_name());
 
         if chunk_type.is_not_size() {
             panic!("Expected a size chunk for this model!");
@@ -173,7 +202,7 @@ pub fn load(file_name: &str) -> Object {
         
         byte_idx += bytes_read;
         let (mut chunk_type, mut bytes_read) = parse_chunk(&bytes[byte_idx..]);
-        println!("Read in a {:?} chunk", chunk_type);
+        println!("Read in a {} chunk", chunk_type.chunk_name());
 
         match chunk_type {
             ChunkType::Voxels(sub_object) => sub_objects.push(sub_object),
@@ -183,13 +212,30 @@ pub fn load(file_name: &str) -> Object {
         byte_idx += bytes_read;
     }
 
-    // TODO: Parse out the Palette, if any
+    // Parse out the optional chunks. Right now, this only includes our palette.
+    let mut object_palette = Palette::magica_voxel_default();
+    while byte_idx < bytes.len() {
+        let (mut chunk_type, mut bytes_read) = parse_chunk(&bytes[byte_idx..]);
+        println!("Read in a {} chunk", chunk_type.chunk_name());
+
+        match chunk_type {
+            ChunkType::Palette(palette) =>
+            {
+                object_palette = Palette {
+                    colors: palette
+                }
+            },
+            _ => println!("Support for this optional chunk is not implemented yet.")
+        }
+        
+        byte_idx += bytes_read;
+    }
 
     let mut object: Object = Object {
         objects: sub_objects,
-        min_bounds: Point3::new(-1, -1, -1),
+        min_bounds: Point3::new(-1, -1, -1), // TODO: compute these bounds
         max_bounds: Point3::new(1, 1, 1),
-        palette: Palette::magica_voxel_default()
+        palette: object_palette
     };
     
     return object;
