@@ -4,8 +4,8 @@ version = "0.1.0"
 authors = ["GuMiner <gus.gran@gmail.com>"]
 
 [dependencies]
-time = "0.1"
 kiss3d = "0.13"
-ncollide = "0.14"
 nalgebra = "0.14"
+ncollide = "0.14"
+time = "0.1"
 byteorder = "1.2"

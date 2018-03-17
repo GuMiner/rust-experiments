@@ -39,17 +39,20 @@ impl Fps {
         }
     }
 
-    pub fn update(&mut self) {
-        let now = time::precise_time_s();
+    pub fn update(&mut self) -> f64 {
         
-        self.current_period.frames += 1;
-        self.current_period.elapsed_time += now - self.last_frame_start;
-    
+        let now = time::precise_time_s();
+        let frame_delta = now - self.last_frame_start;
         self.last_frame_start = now;
 
+        self.current_period.frames += 1;
+        self.current_period.elapsed_time += frame_delta;
+    
         if self.current_period.elapsed_time > 1.0 {
             self.fps = self.current_period.fps();
             self.current_period.reset();
         }
+
+        return frame_delta;
     }
 }
