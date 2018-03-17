@@ -1,6 +1,7 @@
 extern crate nalgebra;
 
 use std::io::BufReader;
+use std::io::Error;
 use std::io::Read;
 use std::fs::File;
 
@@ -11,16 +12,14 @@ use objects::object::SubObject;
 use objects::object::Object;
 use objects::palette::Palette;
 
-pub fn load(file_name: &str) -> Object {
-    let file = File::open(file_name)
-        .expect(format!("Could not open {}.", file_name).as_str());
+pub fn load(file_name: &str) -> Result<Object, Error> { // Too bad we cannot use a generic here...
+    let file = File::open(file_name)?;
 
     let mut buf_reader = BufReader::new(file);
 
     // Slightly inefficient, but these are so small we don't need to stream them in.
     let mut bytes: Vec<u8> = Vec::new();
-    buf_reader.read_to_end(&mut bytes)
-        .expect(format!("Could not read all of {}.", file_name).as_str());
+    buf_reader.read_to_end(&mut bytes)?;
 
     
     let mut voxels: Vec<Voxel> = Vec::new();
@@ -41,5 +40,5 @@ pub fn load(file_name: &str) -> Object {
         palette: Palette::magica_voxel_default()
     };
     
-    return object;
+    return Ok(object);
 }
