@@ -591,6 +591,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "voxelli"
 version = "0.1.0"
 dependencies = [
+ "byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "kiss3d 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "nalgebra 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ncollide 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",

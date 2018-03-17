@@ -7,3 +7,4 @@ authors = ["GuMiner <gus.gran@gmail.com>"]
 kiss3d = "0.13"
 ncollide = "0.14"
 nalgebra = "0.14"
+byteorder = "1.2"
