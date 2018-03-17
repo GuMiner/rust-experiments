@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/voxelli/target/debug/voxelli.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/voxelli",
             "environment": [],
             "externalConsole": true
         }

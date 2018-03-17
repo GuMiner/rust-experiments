@@ -8,42 +8,69 @@ extern crate nalgebra;
 
 mod objects;
 use objects::loader;
+use objects::object::Object;
 
+mod fps;
+use fps::Fps;
+
+use std::path::Path;
 use std::time::Duration;
 use std::thread;
 
-use nalgebra::{Vector3, Translation3, UnitQuaternion};
-use kiss3d::window::Window;
+use nalgebra::{Point2, Point3, Vector3, Translation3, UnitQuaternion};
+use kiss3d::camera::FirstPerson;
 use kiss3d::light::Light;
+use kiss3d::scene::SceneNode;
+use kiss3d::text::Font;
+use kiss3d::window::Window;
+
+fn add_object(node: &mut SceneNode, object: &Object, offset: Point3<f32>) {
+    for sub_object in object.objects.iter() {
+            for voxel in sub_object.voxels.iter() {
+                let mut vx = node.add_cube(1.0, 1.0, 1.0);
+                vx.append_translation(&Translation3::new(voxel.position.x as f32 + offset.x, voxel.position.y as f32 + offset.y, voxel.position.z as f32 + offset.z));
+
+                let color = object.palette.colors[voxel.color as usize];
+                vx.set_color((color[3] as f32) / 255.0, (color[2] as f32) / 255.0, (color[1] as f32) / 255.0);
+            }
+        }
+}
 
 fn main() {
-    let object = loader::load(r"C:\Users\Gustave\Desktop\cyan.vox");
+    let mut window = Window::new("Voxelli");
 
-    let mut window = Window::new("Kiss3d: cube");
+    {
+        let mut camera = FirstPerson::new(Point3::new(-10.0, -10.0, 20.0), Point3::new(0.0, 0.0, 0.0));
 
-    for sub_object in object.objects {
-        for voxel in sub_object.voxels {
-            let mut vx = window.add_cube(1.0, 1.0, 1.0);
-            vx.append_translation(&Translation3::new(voxel.position.x as f32, voxel.position.y as f32, voxel.position.z as f32));
-            
-            let color = object.palette.colors[voxel.color as usize];
-            vx.set_color((color[3] as f32) / 255.0, (color[2] as f32) / 255.0, (color[1] as f32) / 255.0);
+        // Ensure the destructor is called before the window is disposed of.
+        let font = Font::new(Path::new(r"./fonts/DejaVuSans.ttf"), 32);
+
+        let road_model = loader::load(r"./models/Road_Straight.vox");
+        let car_model = loader::load(r"./models/long_car.vox");
+
+        // Load the object into the window
+        let mut road_straight = window.add_group();
+        add_object(&mut road_straight, &road_model, Point3::new(0.0, 0.0, 0.0));
+
+        let mut car = window.add_group();
+        add_object(&mut car, &car_model, Point3::new(0.0, 0.0, 5.0));
+
+        let mut c = window.add_cube(1.0, 1.0, 1.0);
+        c.append_translation(&Translation3::new(1.0, 1.0, 1.0));
+        c.set_color(0.0, 1.0, 0.0);
+
+        window.set_light(Light::StickToCamera);
+
+        let rot = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.0044);
+
+        let mut fps = Fps::new();
+        while window.render_with_camera(&mut camera) {
+            c.prepend_to_local_rotation(&rot);
+            window.draw_text(format!("FPS: {:.*}", 2, fps.fps).as_str(), &Point2::new(30.0, 30.0), &font, &Point3::new(1.0, 0.8, 0.7));
+
+            fps.update();
         }
     }
-
-    let mut c = window.add_cube(1.0, 1.0, 1.0);
-    c.append_translation(&Translation3::new(1.0, 1.0, 1.0));
-    c.set_color(0.0, 1.0, 0.0);
-
-    window.set_light(Light::StickToCamera);
-
-    let rot = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.0014);
-
-
-    while window.render() {
-        c.prepend_to_local_rotation(&rot);
-    }
-
 
     thread::sleep(Duration::from_millis(1000));
 }
