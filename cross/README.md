@@ -1,6 +1,8 @@
 # About
 Cross-stitch / Rust v2 experiments!
 
+Runs locally and in a WebGL canvas.
+
 # Requirements
 - Install Rust crates
 - Install wasm-pack: https://rustwasm.github.io/wasm-pack/installer/
