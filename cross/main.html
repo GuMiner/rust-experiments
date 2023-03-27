@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Pulled from https://sotrh.github.io/learn-wgpu/beginner/tutorial1-window/#wasm-pack -->
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cross</title>
+    <style>
+        canvas {
+            background-color: black;
+        }
+    </style>
+</head>
+
+<body id="wasm-example">
+  <script type="module">
+      import init from "./pkg/cross.js";
+      init().then(() => {
+          console.log("WASM Loaded");
+      });
+  </script>
+</body>
+
+</html>
