@@ -1,8 +1,12 @@
 # About
 Cross-stitch / Rust v2 experiments!
 
-Runs locally and in a WebGL canvas.
+## EGUI setup
+https://github.com/emilk/egui   
+- Install Rust crates
 
+
+## WGPU setup
 # Requirements
 - Install Rust crates
 - Install wasm-pack: https://rustwasm.github.io/wasm-pack/installer/
