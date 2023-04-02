@@ -2,17 +2,18 @@
 use eframe::egui;
 use egui::plot::{Legend, MarkerShape, Plot, Points};
 use egui::{Color32, Ui, Response};
-use egui_extras::RetainedImage;
 
 // Squashed together samples to test UI tech
 // https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/plot_demo.rs
-pub struct Cross {
-    image: RetainedImage,    
+pub struct Cross { 
     name: String,
     age: u32,
     dropped_files: Vec<egui::DroppedFile>,
     picked_path: Option<String>,
-    chart: MarkerDemo
+    chart: MarkerDemo,
+    
+    image: egui::ColorImage,
+    texture: Option<egui::TextureHandle>,
 }
 
 impl Default for Cross {
@@ -20,14 +21,11 @@ impl Default for Cross {
         Self {
             name: "Arthur".to_owned(),
             age: 42,
-            image: RetainedImage::from_image_bytes(
-                "TestImage.jpg",
-                include_bytes!("TestImage.jpg"),
-            )
-            .unwrap(),
+            image: egui::ColorImage::default(),
             dropped_files: Vec::new(),
             picked_path: None,
             chart: MarkerDemo::default(),
+            texture: None,
         }
     }
 }
@@ -107,18 +105,52 @@ impl MarkerDemo {
     }
 }
 
+// https://docs.rs/egui/latest/egui/struct.ColorImage.html#method.from_rgba_unmultiplied
+fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, image::ImageError> {
+    let image = image::io::Reader::open(path)?.decode()?;
+    let size = [image.width() as _, image.height() as _];
+    let image_buffer = image.to_rgba8();
+    let pixels = image_buffer.as_flat_samples();
+    Ok(egui::ColorImage::from_rgba_unmultiplied(
+        size,
+        pixels.as_slice(),
+    ))
+}
+
 
 
 impl eframe::App for Cross {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("My egui Application");
-
+            
             if ui.button("Open file…").clicked() {
                 if let Some(path) = rfd::FileDialog::new().pick_file() {
-                    self.picked_path = Some(path.display().to_string());
+                    // self.picked_path = Some(path.display().to_string());
+                    let loaded_image = load_image_from_path(&path);
+                    match loaded_image {
+                        Ok(image) =>
+                        {
+                            self.image = image.clone();
+
+                            // (Copied, will need to update it on-the-fly as needed)
+                            self.texture = Some(ui.ctx().load_texture(
+                                "my-image",
+                                image,
+                                Default::default()));
+                        },
+                        Err(_) => {}
+                    };
                 }
             }
+
+            // Show the image loaded via file.
+            ui.label(format!("Loaded image: [{},{}]", self.image.size[0], self.image.size[1]));
+
+            if let Some(texture) = &self.texture {
+                ui.image(texture, texture.size_vec2());
+            }
+
             if let Some(picked_path) = &self.picked_path {
                 ui.horizontal(|ui| {
                     ui.label("Picked file:");
@@ -148,7 +180,7 @@ impl eframe::App for Cross {
                 });
             }
 
-            self.image.show_scaled(ui, 0.1);
+            // self.image.show_scaled(ui, 0.1);
 
             ui.horizontal(|ui| {
                 let name_label = ui.label("Your name: ");
