@@ -2,6 +2,7 @@
 use eframe::egui;
 use egui::plot::{Legend, MarkerShape, Plot, Points};
 use egui::{Color32, Ui, Response};
+use std::thread;
 
 // Squashed together samples to test UI tech
 // https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/plot_demo.rs
@@ -14,6 +15,8 @@ pub struct Cross {
     
     image: egui::ColorImage,
     texture: Option<egui::TextureHandle>,
+
+    process_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Default for Cross {
@@ -26,6 +29,7 @@ impl Default for Cross {
             picked_path: None,
             chart: MarkerDemo::default(),
             texture: None,
+            process_handle: None,
         }
     }
 }
@@ -117,6 +121,16 @@ fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, imag
     ))
 }
 
+fn update_pattern(image: egui::ColorImage) {
+    for y in 0..image.size[1] {
+        for x in 0..image.size[0] {
+            // Analyze pixels
+            // TODO -- return markers in grid for charting to use.
+            // Can join on the result and extract out that info here.
+        }
+    }
+}
+
 
 
 impl eframe::App for Cross {
@@ -132,12 +146,15 @@ impl eframe::App for Cross {
                         Ok(image) =>
                         {
                             self.image = image.clone();
+                            let copied_image = image.clone();
+                            self.process_handle = Some(thread::spawn(|| { update_pattern(copied_image) }));
 
                             // (Copied, will need to update it on-the-fly as needed)
                             self.texture = Some(ui.ctx().load_texture(
                                 "my-image",
                                 image,
                                 Default::default()));
+                            
                         },
                         Err(_) => {}
                     };
