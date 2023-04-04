@@ -11,12 +11,14 @@ pub struct Cross {
     age: u32,
     dropped_files: Vec<egui::DroppedFile>,
     picked_path: Option<String>,
-    chart: MarkerDemo,
-    
+//    chart: MarkerDemo,
+
+    computed_points: Vec<ColorPoint>,
+    has_finished: bool,
     image: egui::ColorImage,
     texture: Option<egui::TextureHandle>,
 
-    process_handle: Option<std::thread::JoinHandle<()>>,
+    process_handle: Option<std::thread::JoinHandle<Vec<ColorPoint>>>,
 }
 
 impl Default for Cross {
@@ -27,9 +29,11 @@ impl Default for Cross {
             image: egui::ColorImage::default(),
             dropped_files: Vec::new(),
             picked_path: None,
-            chart: MarkerDemo::default(),
+            has_finished: false,
+            //chart: MarkerDemo::default(),
             texture: None,
             process_handle: None,
+            computed_points: Vec::new(),
         }
     }
 }
@@ -39,7 +43,7 @@ struct MarkerDemo {
     fill_markers: bool,
     marker_radius: f32,
     automatic_colors: bool,
-    marker_color: Color32,
+    marker_color: Color32, // Mutable, modified by below logic.
 }
 
 impl Default for MarkerDemo {
@@ -121,14 +125,33 @@ fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, imag
     ))
 }
 
-fn update_pattern(image: egui::ColorImage) {
+struct ColorPoint {
+    x: f64,
+    y: f64,
+    c: egui::Rgba,
+}
+
+fn update_pattern(image: egui::ColorImage) -> Vec<ColorPoint> {
+    let mut points = Vec::new();
+
     for y in 0..image.size[1] {
         for x in 0..image.size[0] {
+            let color = image.pixels[x + y*image.size[0]];
+            if x % 10 == 0 && y % 10 == 0 {
+                points.push(ColorPoint { 
+                    x: x as f64,
+                    y: (y as f64)*-1.0, 
+                    c: egui::Rgba::from(color)});
+            }
+            // Test analysis logic
+            //if ()
             // Analyze pixels
             // TODO -- return markers in grid for charting to use.
             // Can join on the result and extract out that info here.
         }
     }
+
+    points
 }
 
 
@@ -139,7 +162,7 @@ impl eframe::App for Cross {
             ui.heading("My egui Application");
             
             if ui.button("Open file…").clicked() {
-                if let Some(path) = rfd::FileDialog::new().pick_file() {
+                if let Some(path) = rfd::FileDialog::new().add_filter("images", &["jpg", "jpeg", "png"]).pick_file() {
                     // self.picked_path = Some(path.display().to_string());
                     let loaded_image = load_image_from_path(&path);
                     match loaded_image {
@@ -165,7 +188,7 @@ impl eframe::App for Cross {
             ui.label(format!("Loaded image: [{},{}]", self.image.size[0], self.image.size[1]));
 
             if let Some(texture) = &self.texture {
-                ui.image(texture, texture.size_vec2());
+                ui.image(texture, egui::Vec2::new(200.0, 200.0));
             }
 
             if let Some(picked_path) = &self.picked_path {
@@ -209,8 +232,41 @@ impl eframe::App for Cross {
                 self.age += 1;
             }
             ui.label(format!("Hello '{}', age {}", self.name, self.age));
+
+            if self.has_finished {
+                let markers_plot = Plot::new("markers_demo")
+                    .data_aspect(1.0)
+                    .legend(Legend::default());
+                
+                markers_plot.show(ui, |plot_ui| {
+                    for point in &self.computed_points {
+                        let markerPoint = Points::new(vec![[point.x, point.y]])
+                            .filled(true)
+                            .radius(4.0)
+                            .color(Color32::from(point.c))
+                            .shape(MarkerShape::Square);
+                        plot_ui.points(markerPoint);
+                    }
+                });
+            }
+            else
+            {
+                
+            if let Some(handle) = &self.process_handle {
+                if handle.is_finished() {
+                    match self.process_handle.take().expect("should be done").join() {
+                        Ok(points) =>
+                        {
+                            self.computed_points = points;
+                            self.has_finished = true;
+                        },
+                        Err(_) => {}
+                    };
+                }
+            }
+            }
             
-            self.chart.ui(ui);
+            // self.chart.ui(ui);
         });
 
         
