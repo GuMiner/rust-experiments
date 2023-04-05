@@ -22,20 +22,26 @@ pub struct Cross {
     process_handle: Option<std::thread::JoinHandle<Vec<ColorPoint>>>,
     has_finished: bool,
 
+    // Analysis settings
+    num_width: i32,
+    num_height: i32,
+    num_days: i32,
+
     // Result
     chart_data: ChartData,
-
-    // ui.add(egui::Slider::new(&mut self.age, 0..=120).text("age"));
 }
 
 impl Default for Cross {
     fn default() -> Self {
         Self {
             image: egui::ColorImage::default(),
-            has_finished: false,
             texture: None,
             process_handle: None,
+            has_finished: false,
             chart_data: ChartData::default(),
+            num_width: 40,
+            num_height: 30,
+            num_days: 15,
         }
     }
 }
@@ -69,9 +75,9 @@ impl Cross {
 impl eframe::App for Cross {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal_centered(|ui| {
-                // Image loading and rendering        
+            ui.horizontal_centered(|ui| {    
                 ui.vertical(|ui| { 
+                    // Image loading and rendering    
                     if ui.button("Select Image file...").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("images", &["jpg", "jpeg", "png"])
@@ -91,6 +97,11 @@ impl eframe::App for Cross {
                             (self.image.size[1] as f32 / self.image.size[0] as f32);
                         ui.image(texture, egui::Vec2::new(width, height));
                     }
+
+                    // Generation controls
+                    ui.add(egui::Slider::new(&mut self.num_width, 10..=200).text("Width"));
+                    ui.add(egui::Slider::new(&mut self.num_height, 10..=200).text("Height"));
+                    ui.add(egui::Slider::new(&mut self.num_days, 1..=365).text("Days"));
                 });
 
                 // Cross-stitch chart
