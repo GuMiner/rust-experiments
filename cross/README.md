@@ -5,7 +5,6 @@ Cross-stitch / Rust v2 experiments!
 https://github.com/emilk/egui   
 - Install Rust crates
 
-
 ## WGPU setup
 # Requirements
 - Install Rust crates

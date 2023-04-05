@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // Disable console window for release builds
 
-use cross::Cross;
 use eframe::egui;
+
+mod cross;
 
 const WIDTH: f32 = 800.0;
 const HEIGHT: f32 = 600.0;
@@ -19,6 +20,6 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         TITLE,
         options,
-        Box::new(|_cc| Box::new(Cross::default())),
+        Box::new(|_cc| Box::new(cross::Cross::default())),
     )
 }

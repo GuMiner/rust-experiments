@@ -11,11 +11,6 @@ image = { version = "0.24.6", features = ["jpeg"] }
 rfd = "0.11.3"
 tracing-subscriber = "0.3.16"
 
-
-[lib]
-name = "cross"
-path = "lib.rs"
-
 [[bin]]
-name = "cross-bin"
-path = "main.rs"
+name = "cross"
+path = "src/main.rs"
