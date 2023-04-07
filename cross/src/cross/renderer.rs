@@ -3,7 +3,6 @@ use crate::egui::plot::{Legend, MarkerShape, Plot, Points};
 
 use super::analysis::ColorPoint;
 
-#[derive(Default)]
 pub struct ChartData {
     pub points: Vec<ColorPoint>
 }

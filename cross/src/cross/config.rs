@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Config {
     pub num_width: i32,
     pub num_height: i32,
@@ -7,16 +8,20 @@ pub struct Config {
     last_width: i32,
     last_height: i32,
     last_days: i32,
+    last_colors: i32,
 }
 
 const PIXELS_PER_DAY_AVG: f64 = 80.0;
 
 impl Config {
-    pub fn recalculate_columns(&mut self) {
+    pub fn recalculate_columns(&mut self) -> bool {
+        let mut recalculate = false;
+
         if self.last_width != self.num_width || self.last_height != self.num_height {
             // Recalculate based on image size
             self.num_days = (self.num_width * self.num_height) / (PIXELS_PER_DAY_AVG as i32);
             self.sync_columns();
+            recalculate = true;
         }
 
         if self.last_days != self.num_days {
@@ -32,13 +37,22 @@ impl Config {
             self.num_width = width as i32;
             self.num_height = height as i32;
             self.sync_columns();
+            recalculate = true;
         }
+
+        if self.last_colors != self.num_colors {
+            self.sync_columns();
+            recalculate = true;
+        }
+
+        recalculate
     }
 
     fn sync_columns(&mut self) {
         self.last_width = self.num_width;
         self.last_height = self.num_height;
         self.last_days = self.num_days;
+        self.last_colors = self.num_colors;
     }
 }
 
@@ -53,6 +67,7 @@ impl Default for Config {
             last_width: -1,
             last_height: -1,
             last_days: -1,
+            last_colors: -1,
         };
 
         default_config.sync_columns();

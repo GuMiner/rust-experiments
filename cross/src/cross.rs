@@ -1,6 +1,8 @@
 
 use eframe::egui;
 use egui::Ui;
+
+use std::sync::mpsc;
 use std::thread;
 
 mod analysis;
@@ -23,13 +25,14 @@ pub struct Cross {
 
     // Analysis subthread
     process_handle: Option<std::thread::JoinHandle<Vec<ColorPoint>>>,
+    cancel_sender: Option<mpsc::Sender<bool>>,
     has_finished: bool,
-
+    
     // Analysis settings
     config: Config,
 
     // Result
-    chart_data: ChartData,
+    chart_data: Option<ChartData>,
 }
 
 impl Default for Cross {
@@ -38,8 +41,9 @@ impl Default for Cross {
             image: egui::ColorImage::default(),
             texture: None,
             process_handle: None,
+            cancel_sender: None,
             has_finished: false,
-            chart_data: ChartData::default(),
+            chart_data: None,
             config: Config::default(),
         }
     }
@@ -47,24 +51,38 @@ impl Default for Cross {
 
 
 impl Cross {
+    fn run_analysis(&mut self) {
+        let copied_image = self.image.clone();
+
+        // 
+        if let Some(sender) = &self.cancel_sender {
+            sender.send(true);
+        }
+        if self.process_handle.is_some() {
+            self.process_handle.take().expect("should exist, get rid of this silliness").join();
+        }
+
+        self.has_finished = false;
+
+        let (tx, rx): (mpsc::Sender<bool>, mpsc::Receiver<bool>) = mpsc::channel();
+        self.cancel_sender = Some(tx);
+
+        let copied_config = self.config.clone();
+        self.process_handle = Some(thread::spawn(|| { analysis::update_pattern(copied_image, copied_config, rx) }));
+    }
+
     fn load_image(&mut self, path: std::path::PathBuf, ui: &mut Ui) {
         let loaded_image = input::load_image_from_path(&path);
         match loaded_image {
             Ok(image) =>
             {
-                // Copy the image thrice (future use, texture, and backtround threading)
+                // Copy the image for future use and the texture
                 self.image = image.clone();
-
-                let copied_image = image.clone();
-
-                self.has_finished = false;
-                self.process_handle = Some(thread::spawn(|| { analysis::update_pattern(copied_image) }));
-
                 self.texture = Some(ui.ctx().load_texture(
                     "loaded-image",
                     image,
                     Default::default()));
-        
+                self.run_analysis();
             },
             Err(err) => {
                 print!("Unable to load image: {}", err)
@@ -104,27 +122,30 @@ impl eframe::App for Cross {
                     ui.add(egui::Slider::new(&mut self.config.num_height, 10..=200).text("Height"));
                     ui.add(egui::Slider::new(&mut self.config.num_colors, 2..=50).text("Colors"));
                     ui.add(egui::Slider::new(&mut self.config.num_days, 1..=365).text("Days"));
-                    self.config.recalculate_columns();
+                    if self.config.recalculate_columns() {
+                        self.run_analysis();
+                    }
                 });
 
                 // Cross-stitch chart
                 ui.vertical(|ui| {
-                    if self.has_finished {
-                        renderer::render_chart(ui, &self.chart_data);
+                    if let Some(chart_data) = &self.chart_data {
+                        renderer::render_chart(ui, chart_data);
                     }
-                    else
-                    {
-                        if let Some(handle) = &self.process_handle {
-                            if handle.is_finished() {
-                                match self.process_handle.take().expect("make less confusing.").join() {
-                                    Ok(points) =>
-                                    {
-                                        self.chart_data = ChartData { points: points };
-                                        self.has_finished = true; 
-                                    },
-                                    Err(_) => {}
-                                };
-                            }
+
+                    if let Some(handle) = &self.process_handle {
+                        if handle.is_finished() {
+                            self.cancel_sender = None;
+                            match self.process_handle.take().expect("make less confusing.").join() {
+                                Ok(points) =>
+                                {
+                                    self.chart_data = Some(ChartData { points: points });
+                                    self.has_finished = true; 
+                                },
+                                Err(_) => {}
+                            };
+
+                            self.process_handle = None;
                         }
                     }
                 });
