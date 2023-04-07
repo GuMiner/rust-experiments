@@ -6,6 +6,9 @@ use std::thread;
 mod analysis;
 use analysis::ColorPoint;
 
+mod config;
+use config::Config;
+
 mod input;
 
 mod renderer;
@@ -23,9 +26,7 @@ pub struct Cross {
     has_finished: bool,
 
     // Analysis settings
-    num_width: i32,
-    num_height: i32,
-    num_days: i32,
+    config: Config,
 
     // Result
     chart_data: ChartData,
@@ -39,9 +40,7 @@ impl Default for Cross {
             process_handle: None,
             has_finished: false,
             chart_data: ChartData::default(),
-            num_width: 40,
-            num_height: 30,
-            num_days: 15,
+            config: Config::default(),
         }
     }
 }
@@ -57,6 +56,8 @@ impl Cross {
                 self.image = image.clone();
 
                 let copied_image = image.clone();
+
+                self.has_finished = false;
                 self.process_handle = Some(thread::spawn(|| { analysis::update_pattern(copied_image) }));
 
                 self.texture = Some(ui.ctx().load_texture(
@@ -99,9 +100,11 @@ impl eframe::App for Cross {
                     }
 
                     // Generation controls
-                    ui.add(egui::Slider::new(&mut self.num_width, 10..=200).text("Width"));
-                    ui.add(egui::Slider::new(&mut self.num_height, 10..=200).text("Height"));
-                    ui.add(egui::Slider::new(&mut self.num_days, 1..=365).text("Days"));
+                    ui.add(egui::Slider::new(&mut self.config.num_width, 10..=200).text("Width"));
+                    ui.add(egui::Slider::new(&mut self.config.num_height, 10..=200).text("Height"));
+                    ui.add(egui::Slider::new(&mut self.config.num_colors, 2..=50).text("Colors"));
+                    ui.add(egui::Slider::new(&mut self.config.num_days, 1..=365).text("Days"));
+                    self.config.recalculate_columns();
                 });
 
                 // Cross-stitch chart
