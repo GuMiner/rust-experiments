@@ -18,9 +18,18 @@ pub struct ColorPoint {
     pub c: Rgba,
 }
 
+impl ColorPoint {
+    fn dist_sqd(&self, other: &Self) -> f32 {
+        (other.c.r() - self.c.r()).powi(2) + 
+        (other.c.g() - self.c.g()).powi(2) + 
+        (other.c.b() - self.c.b()).powi(2)
+    }
+}
+
 pub struct MergedPoints {
     points: Vec<ColorPoint>,
-    avg_point: [f32; 3]
+    avg_point: [f32; 3],
+    parent: i32,
 }
 
 fn avg_lengths(a: f32, b: f32, a_len: usize, b_len: usize) -> f32 {
@@ -31,11 +40,16 @@ impl MergedPoints {
     fn new(point: ColorPoint) -> Self {
         let mut merged_points = MergedPoints {
             points: Vec::new(),
-            avg_point: [point.c.r(), point.c.g(), point.c.b()]
+            avg_point: [point.c.r(), point.c.g(), point.c.b()], 
+            parent: -1
         };
 
         merged_points.points.push(point);
         merged_points
+    }
+
+    fn is_parent(&self) -> bool {
+        self.parent == -1
     }
 
     fn expand(&self, flat: &mut Vec<ColorPoint>) {
@@ -44,12 +58,6 @@ impl MergedPoints {
             point_copy.c = Rgba::from_rgb(self.avg_point[0], self.avg_point[1], self.avg_point[2]);
             flat.push(point_copy);
         }
-    }
-
-    fn dist_sqd(&self, other: &Self) -> f32 {
-        (other.avg_point[0] - self.avg_point[0]).powi(2) + 
-        (other.avg_point[1] - self.avg_point[1]).powi(2) + 
-        (other.avg_point[2] - self.avg_point[2]).powi(2)
     }
 
     fn merge(&mut self, other: &Self) {
@@ -82,51 +90,78 @@ pub fn update_pattern(image: ColorImage, config: Config, canceller: mpsc::Receiv
 fn limit_colors(config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc::Receiver<bool>) {
     // Config If: Find-closest and merge
     // No need to reinvent the wheel, can use kdtrees
-    // Edit: None of the kdtree packages are sufficient to track points based on ID. 
+    // Edit: None of the kdtree packages are sufficient to track points based on ID.
+    // Using a naive closest-pairs-merging algorithm is O(n^3), too slow for use.
+
+    // Make list of merged points 
     let mut merged_points = HashMap::new();
 
-    let mut idx = 0;
-    for point in points.iter() {
-        let merged_point = MergedPoints::new(point.clone());
-        merged_points.insert(idx, merged_point);
-        idx += 1;
+    for i in 0..points.len() {
+        let merged_point = MergedPoints::new(points[i].clone());
+        merged_points.insert(i, merged_point);
     }
 
+    // Figure out all cross-point distance pairs
     print!("Loaded {} points\n", merged_points.len());
-    while merged_points.len() > config.num_colors as usize {
-        let mut nearest_distance = f32::MAX;
-        let mut nearest_points = [0, 0];
-
-        // O(n^2) inefficient search, but fast enough for this small scale app.   
-        // ... this is not fast enough and will need edits.
-        for (index, first) in &merged_points {
-            // Early-exit if any data received.
-            match canceller.try_recv() {
-                Ok(_) => return,
-                Err(_) => {}
-            }
-
-            for (second_index, second) in &merged_points {
-                if index != second_index {
-                    let distance = first.dist_sqd(second);
-                    if distance < nearest_distance {
-                        nearest_points[0] = *index;
-                        nearest_points[1] = *second_index;
-                        nearest_distance = distance;
-                    }
-                }
-            }
+    let mut pairs_with_distances = Vec::new();
+    for i in 0..(points.len() - 1) {
+        // Early-exit if any data received.
+        match canceller.try_recv() {
+            Ok(_) => return,
+            Err(_) => {}
         }
-        
-        let removed_points = merged_points.remove(&nearest_points[1]).unwrap();
-        let nearest_point = merged_points.get_mut(&nearest_points[0]).unwrap();
-        nearest_point.merge(&removed_points);
+
+        for j in (i + 1)..points.len() {
+            let distance = points[i].dist_sqd(&points[j]);
+            pairs_with_distances.push((distance, i, j));
+        }
     }
+
+    pairs_with_distances.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // This doesn't work because it doesn't follow chains
+    // Merge closest pairs until the total number of colors is reduced
+    //for i in 0..(pairs_with_distances.len() - config.num_colors as usize) {
+    //    let (_, first, second) = pairs_with_distances[i];
+    //    let first_point = merged_points.remove(&first).unwrap();
+    //    let second_point = merged_points.remove(&second).unwrap();
+//
+    //    if first_point.is_parent() { // Parent == -1 index
+    //        if second_point.is_parent() {
+    //            // Merge 1 into 2 and redirect 1->2 (No parent)
+    //            second_point.merge(&first_point);
+    //            first_point.parent = second as i32;
+    //        } else {
+    //            // Merge 1 into 2's parent. Redirect 1 to 2's parent.
+    //            let second_parent_idx = second_point.parent as usize;
+    //            let second_parent = merged_points.remove(&second_parent_idx).unwrap();
+    //            second_parent.merge(&first_point);
+    //            first_point.parent = second_point.parent;
+//
+    //            merged_points.insert(second_parent_idx, second_parent);
+    //        }
+    //    } else {
+    //        // Either 2 is or is not a top-level node.
+    //        // In either case, Merge 2 into 1's parent. Redirect 2 to 1's parent.
+    //        let first_parent_idx = second_point.parent as usize;
+    //        let first_parent = merged_points.remove(&(second_point.parent as usize)).unwrap();
+    //    }
+//
+    //    merged_points.insert(first, first_point);
+    //    merged_points.insert(second, first_point);
+    //}
+    //    
+    //    let removed_points = merged_points.remove(&nearest_points[1]).unwrap();
+    //    let nearest_point = merged_points.get_mut(&nearest_points[0]).unwrap();
+    //    nearest_point.merge(&removed_points);
+    //}
 
     print!("Combined down to {} points.\n", merged_points.len());
-    points.clear();
+   // points.clear();
     for (index, merged_point) in &merged_points {
-        merged_point.expand(points);
+        if merged_point.is_parent() {
+           // merged_point.expand(points);
+        }
     }
 }
 
