@@ -56,10 +56,10 @@ impl Cross {
 
         // 
         if let Some(sender) = &self.cancel_sender {
-            sender.send(true);
+            _ = sender.send(true);
         }
         if self.process_handle.is_some() {
-            self.process_handle.take().expect("should exist, get rid of this silliness").join();
+            _ = self.process_handle.take().expect("should exist, get rid of this silliness").join();
         }
 
         self.has_finished = false;
@@ -125,6 +125,9 @@ impl eframe::App for Cross {
                     if self.config.recalculate_columns() {
                         self.run_analysis();
                     }
+
+                    // TODO add aspect ratio lock
+                    // TODO add config for the output generation
                 });
 
                 // Cross-stitch chart
