@@ -29,7 +29,7 @@ impl ColorPoint {
 pub struct MergedPoints {
     points: Vec<ColorPoint>,
     avg_point: [f32; 3],
-    parent: i32,
+    cluster_id: i32,
 }
 
 fn avg_lengths(a: f32, b: f32, a_len: usize, b_len: usize) -> f32 {
@@ -41,21 +41,25 @@ impl MergedPoints {
         let mut merged_points = MergedPoints {
             points: Vec::new(),
             avg_point: [point.c.r(), point.c.g(), point.c.b()], 
-            parent: -1
+            cluster_id: -1
         };
 
         merged_points.points.push(point);
         merged_points
     }
 
-    fn is_parent(&self) -> bool {
-        self.parent == -1
-    }
-
     fn expand(&self, flat: &mut Vec<ColorPoint>) {
         for point in &self.points {
             let mut point_copy = point.clone();
             point_copy.c = Rgba::from_rgb(self.avg_point[0], self.avg_point[1], self.avg_point[2]);
+            flat.push(point_copy);
+        }
+    }
+
+    fn expand_color(&self, flat: &mut Vec<ColorPoint>, color: [f32;3]) {
+        for point in &self.points {
+            let mut point_copy = point.clone();
+            point_copy.c = Rgba::from_rgb(color[0], color[1], color[2]);
             flat.push(point_copy);
         }
     }
@@ -87,6 +91,27 @@ pub fn update_pattern(image: ColorImage, config: Config, canceller: mpsc::Receiv
     points
 }
 
+fn clusters_equal(first: i32, second: i32) -> bool {
+    first != -1 && second != -1 && first == second
+}
+
+fn get_merge_cluster(node_idx: usize, node_cluster_id: i32) -> i32 {
+    if node_cluster_id == -1 {
+        node_idx as i32
+    } else {
+        node_cluster_id
+    }
+}
+
+
+fn add_child(set: &mut HashMap<i32, Vec<i32>>, parent: i32, child: i32) {
+    set.get_mut(&parent).expect("must exist").push(child);
+}
+
+fn get_children(set: &HashMap<i32, Vec<i32>>, parent: i32) -> &Vec<i32> {
+    set.get(&parent).expect("must exist")
+}
+
 fn limit_colors(config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc::Receiver<bool>) {
     // Config If: Find-closest and merge
     // No need to reinvent the wheel, can use kdtrees
@@ -94,15 +119,17 @@ fn limit_colors(config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc:
     // Using a naive closest-pairs-merging algorithm is O(n^3), too slow for use.
 
     // Make list of merged points 
-    let mut merged_points = HashMap::new();
+    let mut merged_points = Vec::new();
 
     for i in 0..points.len() {
         let merged_point = MergedPoints::new(points[i].clone());
-        merged_points.insert(i, merged_point);
+        merged_points.push(merged_point);
     }
+
 
     // Figure out all cross-point distance pairs
     print!("Loaded {} points\n", merged_points.len());
+    // This can be zero if cancellation happens elsewhere. TODO fix.
     let mut pairs_with_distances = Vec::new();
     for i in 0..(points.len() - 1) {
         // Early-exit if any data received.
@@ -117,50 +144,64 @@ fn limit_colors(config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc:
         }
     }
 
+    // Custom comparator required because Rust doesn't know how to sort floats by default
     pairs_with_distances.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    print!("Points sorted into {}\n", pairs_with_distances.len());
 
-    // This doesn't work because it doesn't follow chains
-    // Merge closest pairs until the total number of colors is reduced
-    //for i in 0..(pairs_with_distances.len() - config.num_colors as usize) {
-    //    let (_, first, second) = pairs_with_distances[i];
-    //    let first_point = merged_points.remove(&first).unwrap();
-    //    let second_point = merged_points.remove(&second).unwrap();
-//
-    //    if first_point.is_parent() { // Parent == -1 index
-    //        if second_point.is_parent() {
-    //            // Merge 1 into 2 and redirect 1->2 (No parent)
-    //            second_point.merge(&first_point);
-    //            first_point.parent = second as i32;
-    //        } else {
-    //            // Merge 1 into 2's parent. Redirect 1 to 2's parent.
-    //            let second_parent_idx = second_point.parent as usize;
-    //            let second_parent = merged_points.remove(&second_parent_idx).unwrap();
-    //            second_parent.merge(&first_point);
-    //            first_point.parent = second_point.parent;
-//
-    //            merged_points.insert(second_parent_idx, second_parent);
-    //        }
-    //    } else {
-    //        // Either 2 is or is not a top-level node.
-    //        // In either case, Merge 2 into 1's parent. Redirect 2 to 1's parent.
-    //        let first_parent_idx = second_point.parent as usize;
-    //        let first_parent = merged_points.remove(&(second_point.parent as usize)).unwrap();
-    //    }
-//
-    //    merged_points.insert(first, first_point);
-    //    merged_points.insert(second, first_point);
-    //}
-    //    
-    //    let removed_points = merged_points.remove(&nearest_points[1]).unwrap();
-    //    let nearest_point = merged_points.get_mut(&nearest_points[0]).unwrap();
-    //    nearest_point.merge(&removed_points);
-    //}
+    let mut children_of: HashMap<i32, Vec<i32>> = HashMap::new();
+    for i in 0..points.len() {
+        children_of.insert(i as i32, Vec::new());
+    }
+
+    let mut total_clusters: i32 = points.len() as i32;
+    // Iterate through point distances, slowly connecting clusters together
+    // Future variations of this could merge close points, even if it drops the cluster count < config.num_colors
+    for i in 0..pairs_with_distances.len() {
+        
+        // Early-exit if any data received.
+        match canceller.try_recv() {
+            Ok(_) => return,
+            Err(_) => {}
+        }
+
+        let (_, first, second) = pairs_with_distances[i];
+
+        // TODO this merging isn't quite correct. Runs fast enough though. TODO fix.
+        let first_cluster = merged_points[first].cluster_id;
+        let second_cluster = merged_points[second].cluster_id;
+        if clusters_equal(first_cluster, second_cluster) {
+            // Clusters equal, do nothing
+        } else {
+            // Merge first cluster into second
+            let merge_cluster = get_merge_cluster(second, second_cluster);
+            let source_cluster = get_merge_cluster(first, first_cluster);
+
+            // Move children to the new cluster. TODO move children list
+            for child in get_children(&children_of, source_cluster) {
+                merged_points[*child as usize].cluster_id = merge_cluster;
+            }
+
+            // Move this specific point to the new cluster
+            merged_points[source_cluster as usize].cluster_id = merge_cluster;
+            add_child(&mut children_of, merge_cluster, source_cluster);
+            
+            total_clusters = total_clusters - 1;
+            if total_clusters == config.num_colors {
+                break;
+            }
+        }
+    }
+
+    // TODO -- average out puints
+    // Using the parent clusters, return the existing points with their parent colors
 
     print!("Combined down to {} points.\n", merged_points.len());
-   // points.clear();
-    for (index, merged_point) in &merged_points {
-        if merged_point.is_parent() {
-           // merged_point.expand(points);
+    points.clear();
+    for merged_point in &merged_points {
+        if merged_point.cluster_id == -1 {
+           merged_point.expand(points);
+        } else {
+            merged_point.expand_color(points, merged_points[merged_point.cluster_id as usize].avg_point);
         }
     }
 }
