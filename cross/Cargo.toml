@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clustering = "0.1.0"
 eframe = "0.21.3"
 egui-wgpu = "0.21.0"
 egui_extras = { version = "0.21.0", features = ["image"] }
