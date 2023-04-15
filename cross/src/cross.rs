@@ -25,6 +25,7 @@ pub struct Cross {
 
     // Analysis subthread
     process_handle: Option<std::thread::JoinHandle<Vec<ColorPoint>>>,
+    discarded_processes: Vec<std::thread::JoinHandle<Vec<ColorPoint>>>,
     cancel_sender: Option<mpsc::Sender<bool>>,
     has_finished: bool,
     
@@ -45,6 +46,7 @@ impl Default for Cross {
             has_finished: false,
             chart_data: None,
             config: Config::default(),
+            discarded_processes: vec![]
         }
     }
 }
@@ -54,12 +56,31 @@ impl Cross {
     fn run_analysis(&mut self) {
         let copied_image = self.image.clone();
 
-        // 
+        // Stop current thread
         if let Some(sender) = &self.cancel_sender {
             _ = sender.send(true);
         }
+
+        // Save it for future cleanup
         if self.process_handle.is_some() {
-            _ = self.process_handle.take().expect("should exist, get rid of this silliness").join();
+            self.discarded_processes.push(self.process_handle.take().expect("should exist, get rid of this silliness"));
+        }
+
+        // Cleanup any dead threads. Need to use a special-rust method, retain for this.
+        // But because .join mutates, we must use .drain_filter, which is 'unstable' and not easily usable.
+        // Do the silly approach instead
+        //for finished_handle in self.discarded_processes.drain_filter(|handle| { handle.is_finished() }) {
+        //    finished_handle.join();
+        //}
+        // https://doc.rust-lang.org/std/vec/struct.Vec.html#method.drain_filter
+        let mut i = 0;
+        while i < self.discarded_processes.len() {
+            if self.discarded_processes[i].is_finished() {
+                let finished_handle = self.discarded_processes.remove(i);
+                _ = finished_handle.join();
+            } else {
+                i += 1;
+            }
         }
 
         self.has_finished = false;
@@ -120,8 +141,11 @@ impl eframe::App for Cross {
                     // Generation controls
                     ui.add(egui::Slider::new(&mut self.config.num_width, 10..=200).text("Width"));
                     ui.add(egui::Slider::new(&mut self.config.num_height, 10..=200).text("Height"));
-                    ui.add(egui::Slider::new(&mut self.config.num_colors, 2..=50).text("Colors"));
                     ui.add(egui::Slider::new(&mut self.config.num_days, 1..=365).text("Days"));
+                    ui.label("Colorization settings");
+                    ui.add(egui::Slider::new(&mut self.config.num_colors, 2..=50).text("Colors"));
+                    ui.add(egui::Slider::new(&mut self.config.num_iterations, 1..=100).text("kNN Iterations"));
+
                     if self.config.recalculate_columns() {
                         self.run_analysis();
                     }

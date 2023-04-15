@@ -75,8 +75,13 @@ fn limit_colors(config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc:
     // No need to reinvent the wheel, can use kmeans clustering
 
     // Cluster
+    let mut limited_points = Vec::new();
     let clusters = clustering::kmeans(config.num_colors as usize, &points, 100); // max-iters
-    print!("Computed a total of {} clusters\n", clusters.centroids.len());
+    match canceller.try_recv() {
+        Ok(_) => return limited_points,
+        Err(_) => {}
+    }
+    // print!("Computed a total of {} clusters\n", clusters.centroids.len());
 
     // Find average colors for each cluster
     let mut avg_cluster_colors = vec![];
@@ -93,8 +98,6 @@ fn limit_colors(config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc:
         avg_cluster_colors[i].compute_average();
     }
 
-    let mut limited_points = Vec::new();
-
     // Expand out the clusters into a new set of colors
     for i in 0..clusters.elements.len() {
         let cluster_id = clusters.membership[i];
@@ -109,6 +112,10 @@ fn limit_colors(config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc:
 }
 
 fn pass_through(image: ColorImage, config: &Config, points: &mut Vec<ColorPoint>, canceller: &mpsc::Receiver<bool>) {
+    if image.size[0] == 0 {
+        return
+    }
+
     // Iterate in floating point to avoid rounding errors that generate slightly more expected points.
     let y_step = image.size[1] as f64 / (config.num_height as f64);
     let x_step = image.size[0] as f64 / (config.num_width as f64);

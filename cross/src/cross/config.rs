@@ -4,11 +4,13 @@ pub struct Config {
     pub num_height: i32,
     pub num_days: i32,
     pub num_colors: i32,
+    pub num_iterations: i32,
 
     last_width: i32,
     last_height: i32,
     last_days: i32,
     last_colors: i32,
+    last_iterations: i32,
 }
 
 const PIXELS_PER_DAY_AVG: f64 = 80.0;
@@ -45,6 +47,11 @@ impl Config {
             recalculate = true;
         }
 
+        if self.last_iterations != self.num_iterations {
+            self.sync_columns();
+            recalculate = true;
+        }
+
         recalculate
     }
 
@@ -53,6 +60,7 @@ impl Config {
         self.last_height = self.num_height;
         self.last_days = self.num_days;
         self.last_colors = self.num_colors;
+        self.last_iterations = self.num_iterations;
     }
 }
 
@@ -63,11 +71,13 @@ impl Default for Config {
             num_height: 30,
             num_days: 15,
             num_colors: 24,
-            
+            num_iterations: 50,
+
             last_width: -1,
             last_height: -1,
             last_days: -1,
             last_colors: -1,
+            last_iterations: -1,
         };
 
         default_config.sync_columns();

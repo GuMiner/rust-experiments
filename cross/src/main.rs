@@ -1,5 +1,4 @@
 // #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // Disable console window for release builds
-
 use eframe::egui;
 
 mod cross;
